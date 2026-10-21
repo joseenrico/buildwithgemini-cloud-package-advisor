@@ -3,73 +3,628 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agent</title>
-<!-- Optional: used only to draw A2UI Icon components. If it can't load (offline/
-     corp network), icons fall back to showing their name as text. -->
+<title>Cloud Package Advisor</title>
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Optional: used for A2UI Icon components -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">
-<style>
-  :root { --accent:#1a73e8; --bg:#f6f8fa; --border:#dfe3e8; }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family:system-ui,sans-serif; background:var(--bg); display:flex; flex-direction:column; height:100vh; }
-  header { background:var(--accent); color:#fff; padding:.9rem 1.2rem; font-weight:700; }
-  #log { flex:1; overflow-y:auto; padding:1.2rem; max-width:780px; width:100%; margin:0 auto; }
-  .msg { margin:.6rem 0; }
-  .msg.user { text-align:right; }
-  .bubble { display:inline-block; padding:.6rem .9rem; border-radius:12px; background:#fff; border:1px solid var(--border); text-align:left; max-width:90%; white-space:pre-wrap; }
-  .msg.user .bubble { background:var(--accent); color:#fff; border:none; }
-  /* When the reply is an A2UI card, drop the bubble chrome so the card stands alone. */
-  .bubble.rich { background:transparent; border:none; padding:0; max-width:100%; white-space:normal; }
-  form { display:flex; gap:.5rem; padding:1rem; border-top:1px solid var(--border); background:#fff; }
-  input { flex:1; padding:.7rem; border:1px solid var(--border); border-radius:8px; font-size:1rem; }
-  button { padding:.7rem 1.1rem; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer; }
+<!-- Marked.js for markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-  /* --- A2UI component styles (Card, Column, Row, Text, Divider, List, Image, Icon) --- */
-  .a2card { border:1px solid var(--border); border-radius:12px; padding:1rem; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.06); max-width:100%; }
-  .a2card + .a2card, .a2col > .a2card { margin-top:.6rem; }
-  .a2col { display:flex; flex-direction:column; gap:.4rem; }
-  .a2row { display:flex; flex-direction:row; gap:.6rem; align-items:center; flex-wrap:wrap; }
-  .a2row.between { justify-content:space-between; }
-  .a2text { margin:0; line-height:1.4; }
-  .a2text.a2-h1 { font-size:1.5rem; font-weight:700; }
-  .a2text.a2-h2 { font-size:1.25rem; font-weight:700; }
-  .a2text.a2-h3 { font-size:1.1rem; font-weight:600; }
-  .a2text.a2-h4 { font-size:1rem; font-weight:600; }
-  .a2text.a2-caption { font-size:.85rem; color:#666; }
-  .a2divider { border:none; border-top:1px solid var(--border); margin:.4rem 0; width:100%; }
-  .a2img { max-width:100%; border-radius:8px; display:block; }
-  .material-symbols-outlined { font-family:'Material Symbols Outlined'; font-size:1.25rem; line-height:1; vertical-align:middle; color:var(--accent); }
+<style>
+  :root {
+    --bg-page: #fbfbfa;
+    --bg-card: #ffffff;
+    --bg-user-bubble: #f1f0eb;
+    --text-primary: #1f1e1d;
+    --text-secondary: #6e6d68;
+    --text-muted: #9c9a92;
+    --border-color: #e5e4de;
+    --border-subtle: #eeede8;
+    --accent: #d97706; /* warm amber/terracotta */
+    --accent-hover: #b45309;
+    --accent-light: #fef3c7;
+    --code-bg: #f4f3ee;
+    --input-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-page: #191918;
+      --bg-card: #222220;
+      --bg-user-bubble: #2c2b28;
+      --text-primary: #ecebe6;
+      --text-secondary: #a3a199;
+      --text-muted: #737169;
+      --border-color: #383733;
+      --border-subtle: #2d2c29;
+      --accent: #f59e0b;
+      --accent-hover: #fbbf24;
+      --accent-light: #3d2f13;
+      --code-bg: #272623;
+      --input-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+      --card-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header */
+  header {
+    height: 56px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    background: var(--bg-page);
+    z-index: 10;
+    flex-shrink: 0;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
+  }
+
+  .brand-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, var(--accent), #f59e0b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .brand-badge {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 12px;
+    background: var(--bg-user-bubble);
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* Main Container */
+  #chat-container {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.5rem 1rem 8rem 1rem;
+    scroll-behavior: smooth;
+  }
+
+  .column {
+    width: 100%;
+    max-width: 760px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* Empty State */
+  #empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin: auto 0;
+    padding: 2rem 1rem 1rem 1rem;
+    width: 100%;
+    max-width: 760px;
+  }
+
+  .empty-title {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 2.75rem;
+    font-weight: 400;
+    color: var(--text-primary);
+    line-height: 1.2;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.02em;
+  }
+
+  .empty-subtitle {
+    font-size: 1.05rem;
+    color: var(--text-secondary);
+    max-width: 480px;
+    margin-bottom: 2rem;
+  }
+
+  .chips-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 100%;
+    max-width: 580px;
+  }
+
+  @media (min-width: 640px) {
+    .chips-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+  }
+
+  .chip-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: var(--card-shadow);
+  }
+
+  .chip-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  .chip-icon {
+    font-size: 1.25rem;
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+
+  .chip-text {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.35;
+  }
+
+  /* Message Rows */
+  .msg-row {
+    display: flex;
+    width: 100%;
+    gap: 1rem;
+    animation: fadeIn 0.25s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg-row.user {
+    justify-content: flex-end;
+  }
+
+  .msg-row.agent {
+    justify-content: flex-start;
+  }
+
+  .avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--accent);
+  }
+
+  .msg-content {
+    max-width: 85%;
+  }
+
+  .user .msg-content {
+    background: var(--bg-user-bubble);
+    padding: 0.75rem 1.15rem;
+    border-radius: 18px 18px 4px 18px;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .agent .msg-content {
+    flex: 1;
+    max-width: 100%;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+  }
+
+  /* Markdown Typography for Agent Messages */
+  .prose {
+    line-height: 1.7;
+    word-break: break-word;
+  }
+
+  .prose p { margin-bottom: 0.9rem; }
+  .prose p:last-child { margin-bottom: 0; }
+  .prose h1, .prose h2, .prose h3, .prose h4 {
+    margin: 1.25rem 0 0.5rem 0;
+    color: var(--text-primary);
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .prose h1 { font-size: 1.35rem; }
+  .prose h2 { font-size: 1.2rem; }
+  .prose h3 { font-size: 1.05rem; }
+
+  .prose ul, .prose ol {
+    margin: 0.5rem 0 0.9rem 1.4rem;
+  }
+  .prose li { margin-bottom: 0.3rem; }
+
+  .prose hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1.2rem 0;
+  }
+
+  .prose strong { font-weight: 600; }
+
+  .prose a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .prose code {
+    background: var(--code-bg);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.88em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .prose pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.9rem 1.1rem;
+    overflow-x: auto;
+    margin: 0.8rem 0;
+  }
+
+  .prose pre code {
+    background: transparent;
+    padding: 0;
+    border: none;
+    font-size: 0.85em;
+  }
+
+  .prose table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1rem 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 0.88rem;
+  }
+
+  .prose th, .prose td {
+    padding: 0.65rem 0.9rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+    border-right: 1px solid var(--border-subtle);
+  }
+
+  .prose th:last-child, .prose td:last-child {
+    border-right: none;
+  }
+
+  .prose tr:last-child td {
+    border-bottom: none;
+  }
+
+  .prose th {
+    background: var(--bg-card);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .prose tr:nth-child(even) td {
+    background: var(--bg-user-bubble);
+  }
+
+  .prose img {
+    max-width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    margin: 0.8rem 0;
+    box-shadow: var(--card-shadow);
+  }
+
+  /* Thinking Animation */
+  .thinking-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 10px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+
+  .thinking-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: var(--accent);
+    opacity: 0.4;
+    animation: pulse 1.4s infinite ease-in-out both;
+  }
+
+  .thinking-dot:nth-child(1) { animation-delay: -0.32s; }
+  .thinking-dot:nth-child(2) { animation-delay: -0.16s; }
+
+  @keyframes pulse {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
+    40% { transform: scale(1.1); opacity: 1; }
+  }
+
+  /* Fixed Bottom Composer */
+  #composer-wrapper {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    padding: 1rem 1rem 1.5rem 1rem;
+    background: linear-gradient(180deg, rgba(251, 251, 250, 0) 0%, var(--bg-page) 30%);
+    pointer-events: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    #composer-wrapper {
+      background: linear-gradient(180deg, rgba(25, 25, 24, 0) 0%, var(--bg-page) 30%);
+    }
+  }
+
+  #composer-form {
+    width: 100%;
+    max-width: 760px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    box-shadow: var(--input-shadow);
+    display: flex;
+    align-items: flex-end;
+    padding: 0.5rem 0.6rem 0.5rem 1rem;
+    gap: 0.5rem;
+    pointer-events: auto;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  #composer-form:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 4px 20px -2px rgba(217, 119, 6, 0.15), 0 2px 6px -1px rgba(0, 0, 0, 0.05);
+  }
+
+  #prompt-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    resize: none;
+    max-height: 180px;
+    min-height: 24px;
+    line-height: 1.5;
+    padding: 0.3rem 0;
+  }
+
+  #prompt-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  #send-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  #send-btn:hover:not(:disabled) {
+    background: var(--accent-hover);
+    transform: scale(1.03);
+  }
+
+  #send-btn:disabled {
+    background: var(--border-color);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+  }
+
+  #send-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+  }
+
+  /* A2UI Component Styles */
+  .a2card {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.1rem;
+    background: var(--bg-card);
+    box-shadow: var(--card-shadow);
+    max-width: 100%;
+    margin: 0.8rem 0;
+  }
+  .a2card + .a2card, .a2col > .a2card { margin-top: 0.6rem; }
+  .a2col { display: flex; flex-direction: column; gap: 0.5rem; }
+  .a2row { display: flex; flex-direction: row; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+  .a2row.between { justify-content: space-between; }
+  .a2text { margin: 0; line-height: 1.45; }
+  .a2text.a2-h1 { font-size: 1.35rem; font-weight: 700; color: var(--text-primary); }
+  .a2text.a2-h2 { font-size: 1.2rem; font-weight: 700; color: var(--text-primary); }
+  .a2text.a2-h3 { font-size: 1.05rem; font-weight: 600; color: var(--text-primary); }
+  .a2text.a2-h4 { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+  .a2text.a2-caption { font-size: 0.82rem; color: var(--text-secondary); }
+  .a2divider { border: none; border-top: 1px solid var(--border-color); margin: 0.5rem 0; width: 100%; }
+  .a2img { max-width: 100%; border-radius: 8px; display: block; border: 1px solid var(--border-subtle); margin: 0.4rem 0; }
+  .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-size: 1.25rem; line-height: 1; vertical-align: middle; color: var(--accent); }
 </style>
 </head>
 <body>
-<header>Your Agent</header>
-<div id="log"></div>
-<form id="form">
-  <input id="input" placeholder="Ask something…" autocomplete="off" autofocus>
-  <button>Send</button>
-</form>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">⚡</div>
+    <span>Cloud Package Advisor</span>
+    <span class="brand-badge">Gemini ADK</span>
+  </div>
+</header>
+
+<div id="chat-container">
+  <!-- Empty State -->
+  <div id="empty-state">
+    <h1 class="empty-title">What workload are you planning?</h1>
+    <p class="empty-subtitle">Get right-sized cloud VM recommendations, live IDR vs USD cost comparisons, and generated architecture diagrams.</p>
+    
+    <div class="chips-container">
+      <div class="chip-card" onclick="sendQuickPrompt('Compare business-pro package against its hyperscaler equivalent in USD and IDR')">
+        <span class="chip-icon">📊</span>
+        <div class="chip-text">Compare package vs hyperscaler cost</div>
+      </div>
+      <div class="chip-card" onclick="sendQuickPrompt('Recommend a cloud package for an e-commerce store with 10k monthly active users on PostgreSQL')">
+        <span class="chip-icon">🛒</span>
+        <div class="chip-text">Recommend package for e-commerce</div>
+      </div>
+      <div class="chip-card" onclick="sendQuickPrompt('Generate an illustrative architecture image for a microservices cluster on scale-workload')">
+        <span class="chip-icon">🖼️</span>
+        <div class="chip-text">Generate architecture visual diagram</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages List -->
+  <div id="messages-list" class="column" style="display: none;"></div>
+</div>
+
+<!-- Fixed Composer -->
+<div id="composer-wrapper">
+  <form id="composer-form">
+    <textarea id="prompt-input" rows="1" placeholder="Describe your workload, tech stack, or budget…" autocomplete="off"></textarea>
+    <button type="submit" id="send-btn" title="Send message">
+      <svg viewBox="0 0 24 24">
+        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+      </svg>
+    </button>
+  </form>
+</div>
 
 <script>
-const log = document.getElementById("log");
-const form = document.getElementById("form");
-const input = document.getElementById("input");
+const chatContainer = document.getElementById("chat-container");
+const emptyState = document.getElementById("empty-state");
+const messagesList = document.getElementById("messages-list");
+const composerForm = document.getElementById("composer-form");
+const promptInput = document.getElementById("prompt-input");
+const sendBtn = document.getElementById("send-btn");
 
-function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+// Helper to create elements
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
 
-function bubble(who) {
-  const m = el("div", "msg " + who);
-  const b = el("div", "bubble");
-  m.appendChild(b); log.appendChild(m); log.scrollTop = log.scrollHeight;
-  return b;
+// Auto-grow textarea
+promptInput.addEventListener("input", function() {
+  this.style.height = "auto";
+  this.style.height = Math.min(this.scrollHeight, 180) + "px";
+});
+
+// Handle Shift+Enter vs Enter
+promptInput.addEventListener("keydown", function(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    composerForm.dispatchEvent(new Event("submit"));
+  }
+});
+
+function showConversation() {
+  if (emptyState.style.display !== "none") {
+    emptyState.style.display = "none";
+    messagesList.style.display = "flex";
+  }
+}
+
+function appendUserMessage(text) {
+  showConversation();
+  const row = el("div", "msg-row user");
+  const content = el("div", "msg-content", text);
+  row.appendChild(content);
+  messagesList.appendChild(row);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function appendAgentThinking() {
+  showConversation();
+  const row = el("div", "msg-row agent");
+  const avatar = el("div", "avatar", "⚡");
+  const content = el("div", "msg-content");
+  
+  const thinking = el("div", "thinking-indicator");
+  thinking.innerHTML = 'Thinking <span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-dot"></span>';
+  content.appendChild(thinking);
+  
+  row.appendChild(avatar);
+  row.appendChild(content);
+  messagesList.appendChild(row);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+  return content;
 }
 
 /* ----------------------------------------------------------------------------
  * A2UI mini-renderer (v0.8 Basic Catalog subset).
  * Renders Card / Column / Row / Text / Divider / List / Image / Icon.
- * Anything else falls back to plain text (see renderReply). All text goes in via
- * textContent and image URLs are validated, so agent output can't inject HTML.
  * -------------------------------------------------------------------------- */
-
-// A "bound value" is usually {literalString: "..."}; we only support literals.
 function boundStr(v) {
   if (v == null) return "";
   if (typeof v === "string") return v;
@@ -77,7 +632,6 @@ function boundStr(v) {
   return "";
 }
 
-// child ids of a component's props: single `child` and/or `children.explicitList`.
 function childIds(props) {
   const ids = [];
   if (props && typeof props.child === "string") ids.push(props.child);
@@ -86,11 +640,10 @@ function childIds(props) {
   return ids;
 }
 
-// A2UI icon names are camelCase (locationOn); Material Symbols wants snake_case.
 function iconName(n) { return String(n || "").replace(/([a-z0-9])([A-Z])/g, "$1_$2").replace(/\s+/g, "_").toLowerCase(); }
 
 function buildNode(id, comps, seen) {
-  if (!id || seen.has(id)) return null;   // missing / cycle guard
+  if (!id || seen.has(id)) return null;
   seen.add(id);
   const spec = comps[id];
   if (!spec || typeof spec !== "object") return null;
@@ -123,19 +676,17 @@ function buildNode(id, comps, seen) {
       return el("hr", "a2divider");
     case "Image": {
       const src = boundStr(props.url || props.src);
-      if (!/^https?:\/\//i.test(src)) return null;   // only allow safe URLs
+      if (!/^https?:\/\//i.test(src)) return null;
       const img = el("img", "a2img"); img.src = src; img.alt = boundStr(props.alt) || ""; return img;
     }
     case "Icon": {
       const s = el("span", "material-symbols-outlined"); s.textContent = iconName(boundStr(props.name) || props.name); return s;
     }
     default:
-      return null;   // unknown component -> skipped (text fallback covers content)
+      return null;
   }
 }
 
-// Render one or more A2UI messages (beginRendering + surfaceUpdate) into `container`.
-// Returns true if anything was drawn.
 function renderSurface(messages, container) {
   const comps = {};
   const roots = [];
@@ -145,7 +696,7 @@ function renderSurface(messages, container) {
     if (su && Array.isArray(su.components)) for (const c of su.components) if (c && c.id && c.component) comps[c.id] = c.component;
   }
   let rootIds = roots.filter(r => comps[r]);
-  if (rootIds.length === 0) {   // no valid root given -> infer un-referenced components
+  if (rootIds.length === 0) {
     const referenced = new Set();
     for (const id in comps) { const spec = comps[id]; childIds(spec[Object.keys(spec)[0]] || {}).forEach(c => referenced.add(c)); }
     rootIds = Object.keys(comps).filter(id => !referenced.has(id));
@@ -155,7 +706,6 @@ function renderSurface(messages, container) {
   return drew;
 }
 
-// Fallback: pull every Text value out of the messages as plain text.
 function flattenText(messages) {
   const out = [];
   for (const m of messages) {
@@ -165,44 +715,78 @@ function flattenText(messages) {
   return out.join("\n").trim();
 }
 
-function renderReply(b, parts) {
-  b.textContent = "";   // clear the "…" placeholder
+function renderReply(container, parts) {
+  container.innerHTML = "";
   const texts = parts.filter(p => p && (p.kind === "text" || (!p.kind && p.text))).map(p => p.text || "");
   const a2ui = parts.filter(p => p && p.kind === "a2ui" && p.data).map(p => p.data);
 
-  const textStr = texts.join("\n").trim();
-  if (textStr) b.appendChild(el("div", null, textStr));
+  const textStr = texts.join("\n\n").trim();
+  if (textStr) {
+    const prose = el("div", "prose");
+    if (window.marked) {
+      prose.innerHTML = marked.parse(textStr);
+    } else {
+      prose.textContent = textStr;
+    }
+    container.appendChild(prose);
+  }
 
   if (a2ui.length) {
-    b.classList.add("rich");
-    if (!renderSurface(a2ui, b)) b.appendChild(el("div", null, flattenText(a2ui) || "(no card content)"));
+    const cardWrapper = el("div", "a2ui-wrapper");
+    if (!renderSurface(a2ui, cardWrapper)) {
+      const fallback = el("div", "prose", flattenText(a2ui) || "(no card content)");
+      cardWrapper.appendChild(fallback);
+    }
+    container.appendChild(cardWrapper);
   }
-  if (!b.childNodes.length) b.textContent = "(no response)";
-  log.scrollTop = log.scrollHeight;
+
+  if (!container.childNodes.length) {
+    container.textContent = "(no response)";
+  }
+  chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-// The proxy returns { parts: [{kind:"text",text} | {kind:"a2ui",data}] }.
-form.addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const text = input.value.trim();
+async function handleSendMessage(text) {
   if (!text) return;
-  bubble("user").textContent = text;
-  input.value = "";
-  const b = bubble("agent"); b.textContent = "…";
+  appendUserMessage(text);
+  
+  // Disable input & button while waiting
+  promptInput.value = "";
+  promptInput.style.height = "auto";
+  promptInput.disabled = true;
+  sendBtn.disabled = true;
+
+  const agentContainer = appendAgentThinking();
+
   try {
-    const res = await fetch("/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text }) });
-    // Read as text first, then parse. If the proxy ever returns a non-JSON error
-    // page (e.g. a plain "Internal Server Error"), show that body instead of a
-    // cryptic "Unexpected token" JSON error.
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text })
+    });
     const raw = await res.text();
     let data;
     try { data = JSON.parse(raw); }
     catch { throw new Error(`Server returned non-JSON (HTTP ${res.status}). ${raw.slice(0, 300)}`); }
-    renderReply(b, data.parts || []);
+    renderReply(agentContainer, data.parts || []);
   } catch (e) {
-    b.textContent = "Error: " + e.message;
+    agentContainer.innerHTML = `<div class="prose" style="color: #dc2626;">Error: ${e.message}</div>`;
+  } finally {
+    promptInput.disabled = false;
+    sendBtn.disabled = false;
+    promptInput.focus();
+    chatContainer.scrollTop = chatContainer.scrollHeight;
   }
+}
+
+composerForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  handleSendMessage(promptInput.value.trim());
 });
+
+function sendQuickPrompt(prompt) {
+  handleSendMessage(prompt);
+}
 </script>
 </body>
 </html>
