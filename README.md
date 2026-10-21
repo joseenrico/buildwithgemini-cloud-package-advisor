@@ -1,94 +1,121 @@
-# simple-agent
+# Cloud Package Advisor
 
-Simple ReAct agent
-Agent generated with `agents-cli` version `1.4.0`
+An AI-powered infrastructure consulting agent built with the Google Agent Development Kit (ADK) and Gemini on Google Cloud Agent Engine.
+
+Cloud Package Advisor assists users in evaluating cloud hosting requirements, right-sizing virtual machine configurations, comparing local pricing against equivalent hyperscaler options, generating architectural diagrams, and performing precise budget projections in an execution sandbox.
+
+> **Note on Data:** All package specifications, tiers, and pricing values are illustrative dummy data.
+
+---
+
+## Key Capabilities & Implemented Tools
+
+1. **Firestore Package Catalog & Preferences**:
+   - `list_cloud_packages`: Queries available compute packages from Firestore (`cloud_packages` collection) filtered by workload category.
+   - `get_cloud_package`: Retrieves detailed hardware specifications (vCPU, RAM, NVMe storage, bandwidth) and baseline pricing.
+   - `save_user_workload_preference` & `get_user_workload_preference`: Persists and retrieves user workload specs, preferred operating stacks, and target monthly budgets in IDR across sessions.
+
+2. **Real-time Currency Conversion & Pricing Comparison**:
+   - `get_usd_to_idr_rate`: Queries the live Frankfurter exchange rate API for real-time USD to IDR currency conversion without API keys.
+   - `compare_package_cost`: Computes side-by-side comparisons of local IDR pricing against USD hyperscaler alternatives converted to IDR with calculated percentage savings.
+
+3. **Cloud Architecture Visualization**:
+   - `generate_architecture_image`: Prompts `gemini-3.1-flash-lite-image` on Vertex AI to produce custom 3D isometric architecture diagrams for recommended setups, stores them as ADK artifacts, and uploads the image bytes directly to a public Google Cloud Storage bucket.
+
+4. **Agent Engine Sandbox Code Execution**:
+   - Integrated with `AgentEngineSandboxCodeExecutor` on Agent Engine to execute arbitrary Python code safely within an isolated remote sandbox for precise total cost of ownership (TCO) formulas and multi-year sizing projections.
+
+5. **FastAPI Proxy & Web Chat Interface**:
+   - Built with a minimal FastAPI proxy communicating with the deployed agent over the Agent-to-Agent (A2A) protocol.
+   - Clean web chat frontend with native markdown rendering and A2UI support.
+
+---
 
 ## Project Structure
 
 ```
-simple-agent/
-├── app/         # Core agent code
-│   ├── agent.py               # Main agent logic
-│   ├── fast_api_app.py        # FastAPI Backend server
-│   └── app_utils/             # App utilities and helpers
-├── tests/                     # Unit, integration, and load tests
-├── GEMINI.md                  # AI-assisted development guide
-└── pyproject.toml             # Project dependencies
+├── app/
+│   ├── __init__.py
+│   └── agent.py              # Root agent, tools, sandbox executor, and ADK configuration
+├── frontend/
+│   ├── main.py               # FastAPI proxy talking A2A protocol to Agent Engine
+│   ├── requirements.txt      # Frontend runtime dependencies
+│   ├── Dockerfile            # Container build specification for Cloud Run
+│   └── static/
+│       └── index.html        # Responsive web chat UI
+├── seed_firestore.py         # Catalog population script for Firestore
+├── project_brief.md          # Architecture and design brief
+├── agents-cli-manifest.yaml  # ADK project manifest
+└── pyproject.toml            # Python dependencies and packaging configuration
 ```
-
-> 💡 **Tip:** Use [Antigravity CLI](https://antigravity.google/) for AI-assisted development - project context is pre-configured in `GEMINI.md`.
-
-## Requirements
-
-Before you begin, ensure you have:
-- **uv**: Python package manager (used for all dependency management in this project) - [Install](https://docs.astral.sh/uv/getting-started/installation/) ([add packages](https://docs.astral.sh/uv/concepts/dependencies/) with `uv add <package>`)
-- **agents-cli**: Agents CLI - Install with `uv tool install google-agents-cli`
-- **Google Cloud SDK**: For GCP services - [Install](https://cloud.google.com/sdk/docs/install)
-
-
-## Quick Start
-
-Install `agents-cli` and its skills if not already installed:
-
-```bash
-uvx google-agents-cli setup
-```
-
-Install required packages:
-
-```bash
-agents-cli install
-```
-
-Test the agent with a local web server:
-
-```bash
-agents-cli playground
-```
-
-You can also use features from the [ADK](https://adk.dev/) CLI with `uv run adk`.
-
-## Commands
-
-| Command              | Description                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------------- |
-| `agents-cli install` | Install dependencies using uv                                                         |
-| `agents-cli playground` | Launch local development environment                                                  |
-| `agents-cli lint`    | Run code quality checks                                                               |
-| `agents-cli eval`    | Evaluate agent behavior (generate, grade, analyze, and more — see `agents-cli eval --help`) |
-| `uv run pytest tests/unit tests/integration` | Run unit and integration tests                                                        |
-| `agents-cli deploy`  | Deploy agent to Agent Runtime                                                                |
-| `agents-cli publish gemini-enterprise` | Register deployed agent to Gemini Enterprise                    || [A2A Inspector](https://github.com/a2aproject/a2a-inspector) | Launch A2A Protocol Inspector                                                        |
-
-## 🛠️ Project Management
-
-| Command | What It Does |
-|---------|--------------|
-| `agents-cli scaffold enhance` | Add CI/CD pipelines and Terraform infrastructure |
-| `agents-cli infra cicd` | One-command setup of entire CI/CD pipeline + infrastructure |
-| `agents-cli scaffold upgrade` | Auto-upgrade to latest version while preserving customizations |
 
 ---
 
-## Development
+## Setup & Running Locally
 
-Edit your agent logic in `app/agent.py` and test with `agents-cli playground` - it auto-reloads on save.
+### Prerequisites
 
-## Deployment
+- Python 3.11+
+- Google Cloud CLI (`gcloud`) authenticated with Application Default Credentials:
+  ```bash
+  gcloud auth login
+  gcloud auth application-default login
+  gcloud config set project <YOUR_GCP_PROJECT_ID>
+  ```
+- Google Cloud project with Firestore, Vertex AI, and Cloud Storage enabled.
 
+### 1. Agent Setup
+
+1. Install project dependencies:
+   ```bash
+   pip install -e .
+   ```
+
+2. Seed the Firestore catalog:
+   ```bash
+   python seed_firestore.py
+   ```
+
+3. Run the local ADK developer playground:
+   ```bash
+   agents-cli playground
+   ```
+
+### 2. Frontend Setup
+
+1. Navigate to the `frontend/` directory and install dependencies:
+   ```bash
+   cd frontend
+   pip install -r requirements.txt
+   ```
+
+2. Set required environment variables:
+   ```bash
+   export AGENT_ENGINE_RESOURCE_NAME="projects/<PROJECT_NUMBER>/locations/<REGION>/reasoningEngines/<ENGINE_ID>"
+   export AGENT_DIRECTORY="app"
+   ```
+
+3. Start the FastAPI proxy and chat interface:
+   ```bash
+   python main.py
+   ```
+
+---
+
+## Deployment Instructions
+
+### Deploy Agent to Agent Engine
 ```bash
-gcloud config set project <your-project-id>
-agents-cli deploy
+agents-cli deploy --project <YOUR_GCP_PROJECT_ID> --region <REGION>
 ```
 
-To add CI/CD and Terraform, run `agents-cli scaffold enhance`.
-To set up your production infrastructure, run `agents-cli infra cicd`.
-
-## Observability
-
-Built-in telemetry exports to Cloud Trace, BigQuery, and Cloud Logging.
-
-## A2A Inspector
-
-This agent supports the [A2A Protocol](https://a2a-protocol.org/). Use the [A2A Inspector](https://github.com/a2aproject/a2a-inspector) to test interoperability.
-See the [A2A Inspector docs](https://github.com/a2aproject/a2a-inspector) for details.
+### Deploy Frontend to Cloud Run
+```bash
+cd frontend
+gcloud run deploy cloud-package-advisor-frontend \
+  --source . \
+  --project <YOUR_GCP_PROJECT_ID> \
+  --region <REGION> \
+  --allow-unauthenticated \
+  --set-env-vars AGENT_ENGINE_RESOURCE_NAME="projects/<PROJECT_NUMBER>/locations/<REGION>/reasoningEngines/<ENGINE_ID>",AGENT_DIRECTORY="app"
+```
